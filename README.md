@@ -1,7 +1,8 @@
 # Bistro glTF
 
-A compact, high-fidelity glTF conversion of Amazon Lumberyard Bistro v5.2 for testing 3D engines.
+A self-contained conversion of Amazon Lumberyard Bistro v5.2 for testing 3D engines.
 
-It uses conservative mesh quantization without simplification or generated LODs, meshopt compression, full mip hierarchies, and high-quality UASTC KTX2 textures without RDO. It is intended to stay visually faithful to the source, not to be a bit-exact copy.
+- `hq/Bistro.gltf` is the high-quality source of truth: conservatively quantized meshopt geometry and high-quality UASTC KTX2 textures. “HQ” means visually faithful, not bit-exact or mathematically lossless.
+- `web/Bistro.gltf` is the compact lossy distribution: simplified and quantized Draco geometry with role-aware AVIF textures.
 
-The original Bistro is © Amazon Lumberyard and licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+Run the minimal comparison viewer with `pnpm install && pnpm dev`. Bistro is © Amazon Lumberyard and [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).

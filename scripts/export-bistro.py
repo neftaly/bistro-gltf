@@ -425,12 +425,6 @@ def import_scenes(source_dir):
             material["bistro_source_scene"] = scene_name
             material.use_backface_culling = ".DoubleSided" not in original_name
 
-        if scene_name == "Exterior":
-            scene["environment"] = {
-                "intensity": 10.0,
-                "uri": "san_giuseppe_bridge_4k.hdr",
-            }
-
 
 def triangulate_ngons_for_export():
     modified = 0
@@ -698,8 +692,6 @@ def assemble(raw_dir, source_dir, staging_dir, args):
         handle.write("\n")
 
     compress_geometry(staging_dir, args)
-
-    shutil.copy2(source_dir / "san_giuseppe_bridge_4k.hdr", staging_dir)
 
 
 def validate_tools(args):

@@ -1,0 +1,33 @@
+:root {
+  color: #f3f5f7;
+  background: #17191d;
+  font: 14px/1.4 system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; }
+#viewer { width: 100vw; height: 100vh; }
+canvas { display: block; width: 100%; height: 100%; }
+
+#controls {
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid #ffffff26;
+  border-radius: 0.5rem;
+  background: #101216d9;
+  backdrop-filter: blur(8px);
+}
+
+label { display: flex; align-items: center; gap: 0.35rem; }
+select { color: inherit; background: #252932; border: 1px solid #ffffff38; border-radius: 0.25rem; padding: 0.2rem; }
+output { color: #b8bec8; }
+
+@media (max-width: 40rem) {
+  #controls { right: 1rem; flex-wrap: wrap; }
+  output { flex-basis: 100%; }
+}
