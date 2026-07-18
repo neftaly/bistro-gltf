@@ -1,0 +1,24 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    devDependencies:
+      gltfpack:
+        specifier: 1.2.0
+        version: 1.2.0
+
+packages:
+
+  gltfpack@1.2.0:
+    resolution: {integrity: sha512-Wb65Jqc/8yWXeugZvwQO5PWL5oVI0o0TEM7/lu66mMc3HJ7QSuQ/YJyRphUyQNRFzzHZbnrKtdq1/GcWuUbFEA==}
+    engines: {node: '>=18'}
+    hasBin: true
+
+snapshots:
+
+  gltfpack@1.2.0: {}
