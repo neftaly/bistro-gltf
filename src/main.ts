@@ -2,10 +2,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
-import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
-import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { modelUrl, parseSelection, sceneLabel, selectionSearch, variants, type Selection } from './core';
+import { modelUrl, parseSelection, sceneLabel, selectionSearch, type Selection } from './core';
 import './style.css';
 
 const requiredElement = <T extends Element>(selector: string): T => {
@@ -15,7 +13,6 @@ const requiredElement = <T extends Element>(selector: string): T => {
 };
 
 const container = requiredElement<HTMLElement>('#viewer');
-const variantSelect = requiredElement<HTMLSelectElement>('#variant');
 const sceneSelect = requiredElement<HTMLSelectElement>('#scene');
 const status = requiredElement<HTMLOutputElement>('#status');
 const base = import.meta.env.BASE_URL;
@@ -24,7 +21,7 @@ let loaded: GLTF | undefined;
 let generation = 0;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setPixelRatio(1);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1;
 container.append(renderer.domElement);
@@ -43,18 +40,9 @@ room.dispose();
 environmentGenerator.dispose();
 world.environment = environment.texture;
 const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
 
-const ktx2 = new KTX2Loader().detectSupport(renderer);
 const draco = new DRACOLoader();
-const loader = new GLTFLoader()
-  .setKTX2Loader(ktx2)
-  .setDRACOLoader(draco)
-  .setMeshoptDecoder(MeshoptDecoder);
-
-for (const variant of variants) {
-  variantSelect.add(new Option(variant.toUpperCase(), variant, false, variant === selection.variant));
-}
+const loader = new GLTFLoader().setDRACOLoader(draco);
 
 function updateUrl(next: Selection) {
   history.replaceState(null, '', `${location.pathname}${selectionSearch(next)}`);
@@ -108,16 +96,12 @@ function showScene(index: number) {
   frame(loaded.scenes[bounded]);
 }
 
-async function loadVariant(variant: Selection['variant']) {
+async function loadModel() {
   const request = ++generation;
-  status.value = `Loading ${variant.toUpperCase()}…`;
+  status.value = 'Loading…';
   sceneSelect.disabled = true;
   try {
-    const next = await loader.loadAsync(modelUrl(base, variant), (event) => {
-      if (request !== generation) return;
-      const percent = event.total ? ` ${Math.round(event.loaded / event.total * 100)}%` : '';
-      status.value = `Loading ${variant.toUpperCase()}${percent}`;
-    });
+    const next = await loader.loadAsync(modelUrl(base));
     if (request !== generation) {
       disposeGltf(next);
       return;
@@ -134,9 +118,9 @@ async function loadVariant(variant: Selection['variant']) {
       new Option(sceneLabel(scene.name, index), String(index)),
     ));
     sceneSelect.disabled = false;
-    selection = { variant, scene: Math.min(selection.scene, next.scenes.length - 1) };
+    selection = { scene: Math.min(selection.scene, next.scenes.length - 1) };
     showScene(selection.scene);
-    status.value = `${variant.toUpperCase()} · ${next.scenes.length} scenes`;
+    status.value = '';
   } catch (error) {
     if (request !== generation) return;
     status.value = error instanceof Error ? error.message : String(error);
@@ -144,11 +128,6 @@ async function loadVariant(variant: Selection['variant']) {
   }
 }
 
-variantSelect.addEventListener('change', () => {
-  selection = { variant: variantSelect.value as Selection['variant'], scene: 0 };
-  updateUrl(selection);
-  void loadVariant(selection.variant);
-});
 sceneSelect.addEventListener('change', () => showScene(Number(sceneSelect.value)));
 
 function resize() {
@@ -157,20 +136,17 @@ function resize() {
   renderer.setSize(width, height, false);
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
+  renderer.render(world, camera);
 }
 
 new ResizeObserver(resize).observe(container);
-renderer.setAnimationLoop(() => {
-  controls.update();
-  renderer.render(world, camera);
-});
-void loadVariant(selection.variant);
+controls.addEventListener('change', () => renderer.render(world, camera));
+void loadModel();
 
 window.addEventListener('pagehide', () => {
   generation++;
   if (loaded) disposeGltf(loaded);
   environment.dispose();
-  ktx2.dispose();
   draco.dispose();
   renderer.dispose();
 });

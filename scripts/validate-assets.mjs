@@ -3,7 +3,7 @@ import path from 'node:path';
 import validator from 'gltf-validator';
 
 const files = process.argv.slice(2);
-if (files.length === 0) files.push('hq/Bistro.gltf', 'web/Bistro.gltf');
+if (files.length === 0) files.push('variants/hq/Bistro.gltf', 'variants/web/Bistro.gltf');
 
 let failed = false;
 for (const file of files) {

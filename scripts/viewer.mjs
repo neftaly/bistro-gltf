@@ -25,11 +25,9 @@ if (command === 'dev') {
     build: { outDir: output, emptyOutDir: true },
   });
   if (command === 'build') {
-    await Promise.all(['hq', 'web'].map(async (variant) => {
-      const destination = path.join(output, variant);
-      await mkdir(destination, { recursive: true });
-      await cp(path.join(root, variant), destination, { recursive: true });
-    }));
+    const destination = path.join(output, 'web');
+    await mkdir(destination, { recursive: true });
+    await cp(path.join(root, 'variants', 'web'), destination, { recursive: true });
   }
 } else {
   throw new Error('usage: viewer.mjs dev|preview|bundle|build');

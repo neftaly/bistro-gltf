@@ -155,11 +155,11 @@ function parseArguments(arguments_: string[]): Options {
     values.set(key.slice(2), value);
   }
   const input = values.get('input');
-  if (!input) throw new Error('usage: build-web.ts --input GEOMETRY.gltf [--output web/Bistro.gltf]');
+  if (!input) throw new Error('usage: build-web.ts --input GEOMETRY.gltf [--output variants/web/Bistro.gltf]');
   const options = {
     input,
-    source: values.get('source') ?? 'hq/Bistro.gltf',
-    output: values.get('output') ?? 'web/Bistro.gltf',
+    source: values.get('source') ?? 'variants/hq/Bistro.gltf',
+    output: values.get('output') ?? 'variants/web/Bistro.gltf',
     ktx: values.get('ktx') ?? process.env.KTX ?? 'ktx',
     avifenc: values.get('avifenc') ?? process.env.AVIFENC ?? 'avifenc',
     magick: values.get('magick') ?? process.env.MAGICK ?? 'magick',

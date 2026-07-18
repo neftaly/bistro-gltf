@@ -1,3 +1,17 @@
+Bistro scene attribution
+
+Work: Amazon Lumberyard Bistro v5.2
+Creator and copyright holder: Amazon.com, Inc. or its affiliates
+Source: https://developer.nvidia.com/orca/amazon-lumberyard-bistro
+License: Creative Commons Attribution 4.0 International (CC BY 4.0)
+https://creativecommons.org/licenses/by/4.0/
+
+Changes: converted from the original FBX distribution to glTF, with
+processed materials and textures, compressed geometry, and an additional
+lossy web distribution. This derivative is not endorsed by Amazon.
+
+=======================================================================
+
 Attribution 4.0 International
 
 =======================================================================
@@ -378,7 +392,7 @@ Section 8 -- Interpretation.
 Creative Commons is not a party to its public
 licenses. Notwithstanding, Creative Commons may elect to apply one of
 its public licenses to material it publishes and in those instances
-will be considered the ìLicensor.î The text of the Creative Commons
+will be considered the ‚ÄúLicensor.‚Äù The text of the Creative Commons
 public licenses is dedicated to the public domain under the CC0 Public
 Domain Dedication. Except for the limited purpose of indicating that
 material is shared under a Creative Commons public license or as
