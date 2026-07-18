@@ -101,10 +101,13 @@ export function transformedDocument(
   build.web = {
     geometry: {
       codec: 'KHR_draco_mesh_compression',
-      compressor: 'glTF Transform 4.4.1 / Draco 1.5.7',
+      compressor: 'gltfpack 1.2 / glTF Transform 4.4.1 / Draco 1.5.7',
       simplificationRatio: 0.7,
       simplificationError: 0.005,
       permissiveSimplification: true,
+      lockedBorders: true,
+      meshMerging: true,
+      gpuInstancing: true,
       positionBits: 14,
       texcoordBits: 14,
       normalBits: 10,

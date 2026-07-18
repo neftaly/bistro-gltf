@@ -24,5 +24,6 @@ test('web transform replaces required BasisU textures with AVIF', () => {
   assert.deepEqual(result.textures[0].extensions, { EXT_texture_avif: { source: 0 } });
   assert.deepEqual(result.extensionsRequired, ['EXT_texture_avif']);
   assert.equal(result.scenes[0].extras, undefined);
+  assert.equal(result.asset.extras.bistro_gltf.build.web.geometry.lockedBorders, true);
   assert.equal(fixture.images[0].uri, 'Textures/wall.ktx2');
 });
