@@ -32,6 +32,10 @@ container.append(renderer.domElement);
 const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 10_000);
 const world = new THREE.Scene();
 world.background = new THREE.Color(0x17191d);
+world.add(new THREE.HemisphereLight(0xffffff, 0x3a414a, 2));
+const comparisonLight = new THREE.DirectionalLight(0xffffff, 3);
+comparisonLight.position.set(-1, 2, 1);
+world.add(comparisonLight);
 const environmentGenerator = new THREE.PMREMGenerator(renderer);
 const room = new RoomEnvironment();
 const environment = environmentGenerator.fromScene(room, 0.04);
@@ -87,6 +91,12 @@ function disposeGltf(gltf: GLTF) {
   materials.forEach(disposeMaterial);
 }
 
+function useNeutralLighting(gltf: GLTF) {
+  for (const scene of gltf.scenes) scene.traverse((object) => {
+    if (object instanceof THREE.Light) object.visible = false;
+  });
+}
+
 function showScene(index: number) {
   if (!loaded) return;
   const bounded = Math.min(index, loaded.scenes.length - 1);
@@ -118,6 +128,7 @@ async function loadVariant(variant: Selection['variant']) {
       disposeGltf(loaded);
     }
     loaded = next;
+    useNeutralLighting(next);
 
     sceneSelect.replaceChildren(...next.scenes.map((scene, index) =>
       new Option(sceneLabel(scene.name, index), String(index)),
