@@ -15,10 +15,11 @@ type Semantic = 'color' | 'normal' | 'data';
 type Json = Record<string, any>;
 
 const profiles: Record<Semantic, { quality: number; cicp: string; tune: string; maxDimension?: number }> = {
-  color: { quality: 70, cicp: '1/13/1', tune: 'iq' },
-  normal: { quality: 75, cicp: '1/8/0', tune: 'ssim', maxDimension: 1024 },
+  color: { quality: 65, cicp: '1/13/1', tune: 'iq' },
+  normal: { quality: 70, cicp: '1/8/0', tune: 'ssim', maxDimension: 1024 },
   data: { quality: 82, cicp: '1/8/0', tune: 'ssim' },
 };
+const alphaQuality = 90;
 
 // Functional core.
 
@@ -66,6 +67,7 @@ export function transformedDocument(
   source: Json,
   roles: Map<string, Semantic>,
   encoder: string,
+  speed = 6,
 ): Json {
   const document = structuredClone(source);
   for (const scene of document.scenes ?? []) {
@@ -121,11 +123,12 @@ export function transformedDocument(
     textures: {
       codec: 'AVIF',
       encoder,
+      speed,
       profiles,
-      alphaQuality: 100,
+      alphaQuality,
       depth: 10,
       chroma: '4:4:4',
-      resize: { normalMaxDimension: 1024 },
+      resize: { normalMaxDimension: profiles.normal.maxDimension },
     },
   };
   return document;
@@ -168,7 +171,7 @@ function parseArguments(arguments_: string[]): Options {
     magick: values.get('magick') ?? process.env.MAGICK ?? 'magick',
     workers: Number(values.get('workers') ?? 2),
     encoderJobs: Number(values.get('encoder-jobs') ?? 4),
-    speed: Number(values.get('speed') ?? 4),
+    speed: Number(values.get('speed') ?? 6),
     reuse: values.get('reuse') === 'true',
   };
   if (!Number.isInteger(options.workers) || options.workers < 1) throw new Error('--workers must be a positive integer');
@@ -223,7 +226,7 @@ async function encodeTexture(
     '-a', `color:tune=${profile.tune}`, '-d', '10', '-y', '444',
     '--cicp', profile.cicp, '-r', 'full', '--ignore-profile',
   ];
-  if (!opaque) arguments_.push('--qalpha', '100');
+  if (!opaque) arguments_.push('--qalpha', String(alphaQuality));
   arguments_.push(png, output);
   await run(options.avifenc, arguments_);
   const [before, after] = await Promise.all([stat(source), stat(output)]);
@@ -280,7 +283,7 @@ async function main() {
   }
 
   const version = (await run(options.avifenc, ['--version'])).split('\n')[0];
-  const document = transformedDocument(geometry, roles, version);
+  const document = transformedDocument(geometry, roles, version, options.speed);
   const inputBinary = path.join(path.dirname(options.input), geometry.buffers[0].uri);
   const outputBinary = path.join(outputRoot, document.buffers[0].uri);
   await cp(inputBinary, outputBinary);
