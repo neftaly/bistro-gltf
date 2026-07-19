@@ -2,6 +2,8 @@
 
 A self-contained conversion of Amazon Lumberyard Bistro v5.2 for testing 3D engines.
 
+![Bistro glTF viewer](screenshot.avif)
+
 - `variants/hq/Bistro.gltf` is the high-quality source of truth: conservatively quantized meshopt geometry and high-quality UASTC KTX2 textures. “HQ” means visually faithful, not bit-exact or mathematically lossless.
 - `variants/web/Bistro.gltf` is the compact lossy distribution: seam-preserving simplified and quantized Draco geometry with high-resolution, role-aware AVIF textures.
 

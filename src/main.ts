@@ -23,7 +23,6 @@ const requiredElement = <T extends Element>(selector: string): T => {
 const container = requiredElement<HTMLElement>('#viewer');
 const sceneSelect = requiredElement<HTMLSelectElement>('#scene');
 const cameraSelect = requiredElement<HTMLSelectElement>('#camera');
-const lightingSelect = requiredElement<HTMLSelectElement>('#lighting');
 const status = requiredElement<HTMLOutputElement>('#status');
 const base = import.meta.env.BASE_URL;
 let selection = parseSelection(location.search);
@@ -40,12 +39,6 @@ container.append(renderer.domElement);
 const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 10_000);
 const world = new THREE.Scene();
 world.background = new THREE.Color(0x17191d);
-const neutralLighting = new THREE.Group();
-neutralLighting.add(new THREE.HemisphereLight(0xffffff, 0x3a414a, 2));
-const comparisonLight = new THREE.DirectionalLight(0xffffff, 3);
-comparisonLight.position.set(-1, 2, 1);
-neutralLighting.add(comparisonLight);
-world.add(neutralLighting);
 const environmentGenerator = new THREE.PMREMGenerator(renderer);
 const room = new RoomEnvironment();
 const environment = environmentGenerator.fromScene(room, 0.04);
@@ -121,28 +114,16 @@ function playSceneAnimations(scene: THREE.Object3D) {
   }
 }
 
-function applyLighting(scene: THREE.Object3D) {
-  const authored = lightingSelect.value === 'authored';
-  neutralLighting.visible = !authored;
+function applyAuthoredLighting(scene: THREE.Object3D) {
   const lights: PunctualLightLevel[] = [];
   scene.traverse((object) => {
     if (!(object instanceof THREE.Light)) return;
-    object.visible = authored;
     lights.push({
       type: object instanceof THREE.DirectionalLight ? 'directional' : 'local',
       intensity: object.intensity,
     });
   });
-  renderer.toneMappingExposure = authored ? authoredLightExposure(lights) : 1;
-}
-
-function updateLightingAvailability(scene: THREE.Object3D) {
-  let available = false;
-  scene.traverse((object) => {
-    available ||= object instanceof THREE.Light;
-  });
-  if (!available) lightingSelect.value = 'neutral';
-  lightingSelect.disabled = !available;
+  renderer.toneMappingExposure = authoredLightExposure(lights);
 }
 
 function showScene(index: number) {
@@ -153,11 +134,10 @@ function showScene(index: number) {
   selection = { ...selection, scene: bounded };
   sceneSelect.value = String(bounded);
   cameraSelect.disabled = !authoredCamera(loaded.scenes[bounded]);
-  updateLightingAvailability(loaded.scenes[bounded]);
   updateUrl(selection);
   frame(loaded.scenes[bounded]);
   playSceneAnimations(loaded.scenes[bounded]);
-  applyLighting(loaded.scenes[bounded]);
+  applyAuthoredLighting(loaded.scenes[bounded]);
 }
 
 async function loadModel() {
@@ -194,9 +174,6 @@ async function loadModel() {
 sceneSelect.addEventListener('change', () => showScene(Number(sceneSelect.value)));
 cameraSelect.addEventListener('change', () => {
   controls.enabled = cameraSelect.value === 'orbit';
-});
-lightingSelect.addEventListener('change', () => {
-  if (loaded) applyLighting(loaded.scenes[selection.scene]);
 });
 
 function resize() {
