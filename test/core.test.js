@@ -30,5 +30,5 @@ test('scene labels are readable and retain a fallback', () => {
 test('authored light exposure maps physical intensities into the viewer range', () => {
   assert.equal(authoredLightExposure([]), 1);
   assert.equal(authoredLightExposure([{ type: 'directional', intensity: 102_450 }]), 3 / 102_450);
-  assert.equal(authoredLightExposure([{ type: 'local', intensity: 20_000 }]), 100 / 20_000);
+  assert.equal(authoredLightExposure([{ type: 'local', intensity: 20_000 }]), 250 / 20_000);
 });

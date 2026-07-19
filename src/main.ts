@@ -114,6 +114,18 @@ function playSceneAnimations(scene: THREE.Object3D) {
   }
 }
 
+function completeInteriorLightRig(gltf: GLTF) {
+  const source = gltf.scenes.find((scene) => scene.name === 'Interior');
+  const lights = source?.children.filter((object): object is THREE.Light => object instanceof THREE.Light) ?? [];
+  if (!lights.length) return;
+
+  for (const scene of gltf.scenes) {
+    if (!scene.name.startsWith('Interior') || scene === source) continue;
+    const hasLights = scene.children.some((object) => object instanceof THREE.Light);
+    if (!hasLights) scene.add(...lights.map((light) => light.clone()));
+  }
+}
+
 function applyAuthoredLighting(scene: THREE.Object3D) {
   const lights: PunctualLightLevel[] = [];
   scene.traverse((object) => {
@@ -156,6 +168,7 @@ async function loadModel() {
       disposeGltf(loaded);
     }
     loaded = next;
+    completeInteriorLightRig(next);
 
     sceneSelect.replaceChildren(...next.scenes.map((scene, index) =>
       new Option(sceneLabel(scene.name, index), String(index)),

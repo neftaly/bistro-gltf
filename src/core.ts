@@ -27,7 +27,7 @@ export function sceneLabel(name: string, index: number): string {
 
 export function authoredLightExposure(lights: PunctualLightLevel[]): number {
   const peak = lights.reduce((value, light) => {
-    const reference = light.type === 'directional' ? 3 : 100;
+    const reference = light.type === 'directional' ? 3 : 250;
     return Math.max(value, light.intensity / reference);
   }, 1);
   return 1 / peak;
