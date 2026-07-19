@@ -3,7 +3,15 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { modelUrl, parseSelection, sceneLabel, selectionSearch, type Selection } from './core';
+import {
+  authoredLightExposure,
+  modelUrl,
+  parseSelection,
+  sceneLabel,
+  selectionSearch,
+  type PunctualLightLevel,
+  type Selection,
+} from './core';
 import './style.css';
 
 const requiredElement = <T extends Element>(selector: string): T => {
@@ -116,9 +124,16 @@ function playSceneAnimations(scene: THREE.Object3D) {
 function applyLighting(scene: THREE.Object3D) {
   const authored = lightingSelect.value === 'authored';
   neutralLighting.visible = !authored;
+  const lights: PunctualLightLevel[] = [];
   scene.traverse((object) => {
-    if (object instanceof THREE.Light) object.visible = authored;
+    if (!(object instanceof THREE.Light)) return;
+    object.visible = authored;
+    lights.push({
+      type: object instanceof THREE.DirectionalLight ? 'directional' : 'local',
+      intensity: object.intensity,
+    });
   });
+  renderer.toneMappingExposure = authored ? authoredLightExposure(lights) : 1;
 }
 
 function updateLightingAvailability(scene: THREE.Object3D) {
