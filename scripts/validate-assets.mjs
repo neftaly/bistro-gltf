@@ -1,10 +1,15 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import validator from 'gltf-validator';
+import { variants } from './variant-settings.ts';
 
 const files = process.argv.slice(2);
-if (files.length === 0) files.push('variants/hq/Bistro.gltf', 'variants/web/Bistro.gltf');
-const sizeLimits = new Map([[path.resolve('variants/web/Bistro.gltf'), 100_000_000]]);
+if (files.length === 0) {
+  files.push('variants/hq/Bistro.gltf', 'variants/web/Bistro.gltf');
+}
+const sizeLimits = new Map([
+  [path.resolve('variants/web/Bistro.gltf'), variants.web.sizeLimit],
+]);
 
 let failed = false;
 for (const file of files) {

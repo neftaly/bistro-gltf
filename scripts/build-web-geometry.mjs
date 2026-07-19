@@ -5,6 +5,7 @@ import { cp, mkdir, mkdtemp, readFile, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { variantSettings } from './variant-settings.ts';
 
 const execute = promisify(execFile);
 const root = process.cwd();
@@ -17,8 +18,11 @@ for (let index = 0; index < arguments_.length; index += 2) {
   values.set(key.slice(2), value);
 }
 
+const variant = values.get('variant') ?? 'web';
+const settings = variantSettings(variant);
+const geometry = settings.geometry;
 const source = path.resolve(values.get('source') ?? 'variants/hq/Bistro.gltf');
-const output = path.resolve(values.get('output') ?? '.build/web-geometry/Bistro.gltf');
+const output = path.resolve(values.get('output') ?? `.build/${variant}-geometry/Bistro.gltf`);
 const gltfpack = values.get('gltfpack') ?? path.join(root, 'node_modules/.bin/gltfpack');
 const gltfTransform = values.get('gltf-transform') ?? path.join(root, 'node_modules/.bin/gltf-transform');
 if (path.dirname(output) === path.dirname(source)) throw new Error('refusing to overwrite the HQ source directory');
@@ -39,17 +43,23 @@ try {
   ]);
   await run(process.execPath, [path.join(root, 'scripts/decode-meshopt.mjs'), source, decoded]);
   await symlink(path.join(path.dirname(source), 'Textures'), path.join(path.dirname(decoded), 'Textures'), 'dir');
-  await run(gltfpack, [
+  const gltfpackArguments = [
     '-i', decoded, '-o', packed,
-    '-si', '0.7', '-se', '0.005', '-sp', '-slb',
-    '-vp', '14', '-vpf', '-vt', '14', '-vtf', '-vn', '10',
-    '-km', '-ke', '-kv', '-af', '0', '-at', '16', '-ar', '12', '-as', '16', '-ac',
+    '-si', geometry.simplificationRatio, '-se', geometry.simplificationError,
+    '-vp', geometry.positionBits, '-vpf', '-vt', geometry.texcoordBits, '-vtf', '-vn', geometry.normalBits,
+    '-km', '-ke', '-af', '0', '-at', '16', '-ar', '12', '-as', '16', '-ac',
     '-tr', '-mm', '-mi',
-  ]);
+  ];
+  if (geometry.permissiveSimplification) gltfpackArguments.push('-sp');
+  if (geometry.lockedBorders) gltfpackArguments.push('-slb');
+  if (geometry.keepAttributes) gltfpackArguments.push('-kv');
+  await run(gltfpack, gltfpackArguments);
   await symlink(path.join(path.dirname(source), 'Textures'), path.join(path.dirname(packed), 'Textures'), 'dir');
   await run(gltfTransform, [
     'draco', packed, encoded,
-    '--quantize-position', '14', '--quantize-texcoord', '14', '--quantize-normal', '10',
+    '--quantize-position', geometry.positionBits,
+    '--quantize-texcoord', geometry.texcoordBits,
+    '--quantize-normal', geometry.normalBits,
     '--quantize-color', '8', '--quantize-generic', '12', '--encode-speed', '5', '--decode-speed', '5',
   ]);
 

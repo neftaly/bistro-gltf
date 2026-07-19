@@ -12,6 +12,8 @@
     <form id="controls">
       <a href="https://developer.nvidia.com/orca/amazon-lumberyard-bistro">Bistro © Amazon</a>
       <label>Scene <select id="scene" disabled></select></label>
+      <label>Camera <select id="camera" disabled><option value="orbit">Orbit</option><option value="authored">Authored</option></select></label>
+      <label>Lighting <select id="lighting" disabled><option value="neutral">Neutral</option><option value="authored">Authored</option></select></label>
       <output id="status" aria-live="polite">Loading…</output>
     </form>
     <script type="module" src="/src/main.ts"></script>

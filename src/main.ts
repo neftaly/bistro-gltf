@@ -14,10 +14,13 @@ const requiredElement = <T extends Element>(selector: string): T => {
 
 const container = requiredElement<HTMLElement>('#viewer');
 const sceneSelect = requiredElement<HTMLSelectElement>('#scene');
+const cameraSelect = requiredElement<HTMLSelectElement>('#camera');
+const lightingSelect = requiredElement<HTMLSelectElement>('#lighting');
 const status = requiredElement<HTMLOutputElement>('#status');
 const base = import.meta.env.BASE_URL;
 let selection = parseSelection(location.search);
 let loaded: GLTF | undefined;
+let mixer: THREE.AnimationMixer | undefined;
 let generation = 0;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
@@ -29,10 +32,12 @@ container.append(renderer.domElement);
 const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 10_000);
 const world = new THREE.Scene();
 world.background = new THREE.Color(0x17191d);
-world.add(new THREE.HemisphereLight(0xffffff, 0x3a414a, 2));
+const neutralLighting = new THREE.Group();
+neutralLighting.add(new THREE.HemisphereLight(0xffffff, 0x3a414a, 2));
 const comparisonLight = new THREE.DirectionalLight(0xffffff, 3);
 comparisonLight.position.set(-1, 2, 1);
-world.add(comparisonLight);
+neutralLighting.add(comparisonLight);
+world.add(neutralLighting);
 const environmentGenerator = new THREE.PMREMGenerator(renderer);
 const room = new RoomEnvironment();
 const environment = environmentGenerator.fromScene(room, 0.04);
@@ -43,6 +48,7 @@ const controls = new OrbitControls(camera, renderer.domElement);
 
 const draco = new DRACOLoader();
 const loader = new GLTFLoader().setDRACOLoader(draco);
+const clock = new THREE.Clock();
 
 function updateUrl(next: Selection) {
   history.replaceState(null, '', `${location.pathname}${selectionSearch(next)}`);
@@ -79,10 +85,48 @@ function disposeGltf(gltf: GLTF) {
   materials.forEach(disposeMaterial);
 }
 
-function useNeutralLighting(gltf: GLTF) {
-  for (const scene of gltf.scenes) scene.traverse((object) => {
-    if (object instanceof THREE.Light) object.visible = false;
+function authoredCamera(scene: THREE.Object3D): THREE.Camera | undefined {
+  let result: THREE.Camera | undefined;
+  scene.traverse((object) => {
+    if (!result && object instanceof THREE.Camera) result = object;
   });
+  return result;
+}
+
+function viewCamera(): THREE.Camera {
+  if (cameraSelect.value === 'authored' && loaded) {
+    return authoredCamera(loaded.scenes[selection.scene]) ?? camera;
+  }
+  return camera;
+}
+
+function playSceneAnimations(scene: THREE.Object3D) {
+  mixer?.stopAllAction();
+  mixer = new THREE.AnimationMixer(scene);
+  for (const clip of loaded?.animations ?? []) {
+    const applies = clip.tracks.some((track) => {
+      const { nodeName } = THREE.PropertyBinding.parseTrackName(track.name);
+      return Boolean(scene.getObjectByName(nodeName));
+    });
+    if (applies) mixer.clipAction(clip).play();
+  }
+}
+
+function applyLighting(scene: THREE.Object3D) {
+  const authored = lightingSelect.value === 'authored';
+  neutralLighting.visible = !authored;
+  scene.traverse((object) => {
+    if (object instanceof THREE.Light) object.visible = authored;
+  });
+}
+
+function updateLightingAvailability(scene: THREE.Object3D) {
+  let available = false;
+  scene.traverse((object) => {
+    available ||= object instanceof THREE.Light;
+  });
+  if (!available) lightingSelect.value = 'neutral';
+  lightingSelect.disabled = !available;
 }
 
 function showScene(index: number) {
@@ -92,8 +136,12 @@ function showScene(index: number) {
   world.add(loaded.scenes[bounded]);
   selection = { ...selection, scene: bounded };
   sceneSelect.value = String(bounded);
+  cameraSelect.disabled = !authoredCamera(loaded.scenes[bounded]);
+  updateLightingAvailability(loaded.scenes[bounded]);
   updateUrl(selection);
   frame(loaded.scenes[bounded]);
+  playSceneAnimations(loaded.scenes[bounded]);
+  applyLighting(loaded.scenes[bounded]);
 }
 
 async function loadModel() {
@@ -112,7 +160,6 @@ async function loadModel() {
       disposeGltf(loaded);
     }
     loaded = next;
-    useNeutralLighting(next);
 
     sceneSelect.replaceChildren(...next.scenes.map((scene, index) =>
       new Option(sceneLabel(scene.name, index), String(index)),
@@ -129,6 +176,12 @@ async function loadModel() {
 }
 
 sceneSelect.addEventListener('change', () => showScene(Number(sceneSelect.value)));
+cameraSelect.addEventListener('change', () => {
+  controls.enabled = cameraSelect.value === 'orbit';
+});
+lightingSelect.addEventListener('change', () => {
+  if (loaded) applyLighting(loaded.scenes[selection.scene]);
+});
 
 function resize() {
   const width = container.clientWidth;
@@ -136,16 +189,24 @@ function resize() {
   renderer.setSize(width, height, false);
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
-  renderer.render(world, camera);
+  const authored = loaded && authoredCamera(loaded.scenes[selection.scene]);
+  if (authored instanceof THREE.PerspectiveCamera) {
+    authored.aspect = width / height;
+    authored.updateProjectionMatrix();
+  }
 }
 
 new ResizeObserver(resize).observe(container);
-controls.addEventListener('change', () => renderer.render(world, camera));
+renderer.setAnimationLoop(() => {
+  mixer?.update(clock.getDelta());
+  renderer.render(world, viewCamera());
+});
 void loadModel();
 
 window.addEventListener('pagehide', () => {
   generation++;
   if (loaded) disposeGltf(loaded);
+  renderer.setAnimationLoop(null);
   environment.dispose();
   draco.dispose();
   renderer.dispose();

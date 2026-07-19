@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { textureRoles, transformedDocument } from '../scripts/build-web.ts';
+import { texturePlans, textureRoles, transformedDocument } from '../scripts/build-web.ts';
 
 const fixture = {
   asset: { version: '2.0' },
@@ -14,6 +14,9 @@ const fixture = {
 
 test('texture semantics come from material slots', () => {
   assert.deepEqual([...textureRoles(fixture)], [['Textures/wall.ktx2', 'color']]);
+  const plan = texturePlans(fixture).get('Textures/wall.ktx2');
+  assert.equal(plan.alphaRequired, false);
+  assert.deepEqual([...plan.channels], ['r', 'g', 'b']);
 });
 
 test('web transform replaces required BasisU textures with AVIF', () => {
@@ -26,8 +29,11 @@ test('web transform replaces required BasisU textures with AVIF', () => {
   assert.equal(result.scenes[0].extras, undefined);
   assert.equal(result.asset.extras.bistro_gltf.build.web.geometry.lockedBorders, true);
   assert.equal(result.asset.extras.bistro_gltf.build.web.textures.speed, 6);
-  assert.equal(result.asset.extras.bistro_gltf.build.web.textures.profiles.color.quality, 65);
-  assert.equal(result.asset.extras.bistro_gltf.build.web.textures.profiles.normal.quality, 70);
-  assert.equal(result.asset.extras.bistro_gltf.build.web.textures.alphaQuality, 90);
+  assert.equal(result.asset.extras.bistro_gltf.build.web.geometry.permissiveSimplification, false);
+  assert.equal(result.asset.extras.bistro_gltf.build.web.textures.profiles.color.quality, 60);
+  assert.equal(result.asset.extras.bistro_gltf.build.web.textures.profiles.normal.quality, 60);
+  assert.equal(result.asset.extras.bistro_gltf.build.web.textures.alphaQuality, 85);
+  assert.equal(result.asset.extras.bistro_gltf.build.web.textures.chroma, '4:4:4');
+  assert.equal(result.asset.extras.bistro_gltf.build.web.textures.stripUnusedChannels, true);
   assert.equal(fixture.images[0].uri, 'Textures/wall.ktx2');
 });

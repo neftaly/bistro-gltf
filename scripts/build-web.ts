@@ -10,53 +10,63 @@ import { cp, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promi
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { variantSettings, type Semantic, type VariantSettings } from './variant-settings.ts';
 
-type Semantic = 'color' | 'normal' | 'data';
 type Json = Record<string, any>;
-
-const profiles: Record<Semantic, { quality: number; cicp: string; tune: string; maxDimension?: number }> = {
-  color: { quality: 65, cicp: '1/13/1', tune: 'iq' },
-  normal: { quality: 70, cicp: '1/8/0', tune: 'ssim', maxDimension: 1024 },
-  data: { quality: 82, cicp: '1/8/0', tune: 'ssim' },
-};
-const alphaQuality = 90;
+type Channel = 'r' | 'g' | 'b';
+interface TexturePlan { role: Semantic; alphaRequired: boolean; channels: Set<Channel> }
 
 // Functional core.
 
-export function textureRoles(document: Json): Map<string, Semantic> {
-  const byTexture = new Map<number, Set<Semantic>>();
-  const add = (textureInfo: Json | undefined, role: Semantic) => {
+export function texturePlans(document: Json): Map<string, TexturePlan> {
+  const byTexture = new Map<number, { roles: Set<Semantic>; alphaRequired: boolean; channels: Set<Channel> }>();
+  const add = (
+    textureInfo: Json | undefined,
+    role: Semantic,
+    channels: Channel[],
+    alphaRequired = false,
+  ) => {
     if (!textureInfo) return;
-    const roles = byTexture.get(textureInfo.index) ?? new Set<Semantic>();
-    roles.add(role);
-    byTexture.set(textureInfo.index, roles);
+    const plan = byTexture.get(textureInfo.index) ?? {
+      roles: new Set<Semantic>(),
+      alphaRequired: false,
+      channels: new Set<Channel>(),
+    };
+    plan.roles.add(role);
+    plan.alphaRequired ||= alphaRequired;
+    channels.forEach((channel) => plan.channels.add(channel));
+    byTexture.set(textureInfo.index, plan);
   };
 
   for (const material of document.materials ?? []) {
     const pbr = material.pbrMetallicRoughness ?? {};
-    add(pbr.baseColorTexture, 'color');
-    add(pbr.metallicRoughnessTexture, 'data');
-    add(material.normalTexture, 'normal');
-    add(material.occlusionTexture, 'data');
-    add(material.emissiveTexture, 'color');
+    add(pbr.baseColorTexture, 'color', ['r', 'g', 'b'], material.alphaMode === 'MASK' || material.alphaMode === 'BLEND');
+    add(pbr.metallicRoughnessTexture, 'data', ['g', 'b']);
+    add(material.normalTexture, 'normal', ['r', 'g', 'b']);
+    add(material.occlusionTexture, 'data', ['r']);
+    add(material.emissiveTexture, 'color', ['r', 'g', 'b']);
   }
 
-  const byUri = new Map<string, Set<Semantic>>();
-  for (const [textureIndex, roles] of byTexture) {
-    if (roles.size !== 1) throw new Error(`texture ${textureIndex} has conflicting roles`);
+  const byUri = new Map<string, TexturePlan>();
+  for (const [textureIndex, plan] of byTexture) {
+    if (plan.roles.size !== 1) throw new Error(`texture ${textureIndex} has conflicting roles`);
     const texture = document.textures[textureIndex];
     const source = texture.source ?? texture.extensions?.KHR_texture_basisu?.source;
     if (source === undefined) throw new Error(`texture ${textureIndex} has no source`);
     const uri = document.images[source].uri;
-    const uriRoles = byUri.get(uri) ?? new Set<Semantic>();
-    uriRoles.add(roles.values().next().value as Semantic);
-    byUri.set(uri, uriRoles);
+    const role = plan.roles.values().next().value as Semantic;
+    const uriPlan = byUri.get(uri) ?? { role, alphaRequired: false, channels: new Set<Channel>() };
+    if (uriPlan.role !== role) throw new Error(`${uri} has conflicting texture roles`);
+    uriPlan.alphaRequired ||= plan.alphaRequired;
+    plan.channels.forEach((channel) => uriPlan.channels.add(channel));
+    byUri.set(uri, uriPlan);
   }
 
-  return new Map([...byUri].map(([uri, roles]) => {
-    if (roles.size !== 1) throw new Error(`${uri} has conflicting texture roles`);
-    return [uri, roles.values().next().value as Semantic];
-  }));
+  return byUri;
+}
+
+export function textureRoles(document: Json): Map<string, Semantic> {
+  return new Map([...texturePlans(document)].map(([uri, plan]) => [uri, plan.role]));
 }
 
 export function avifUri(uri: string): string {
@@ -68,7 +78,10 @@ export function transformedDocument(
   roles: Map<string, Semantic>,
   encoder: string,
   speed = 6,
+  variant = 'web',
 ): Json {
+  const settings = variantSettings(variant);
+  const { geometry, textures } = settings;
   const document = structuredClone(source);
   for (const scene of document.scenes ?? []) {
     if (!scene.extras?.environment) continue;
@@ -96,23 +109,18 @@ export function transformedDocument(
     document[key] = values;
   }
 
-  document.asset.generator = 'bistro-gltf web conversion';
+  document.asset.generator = `bistro-gltf ${variant} conversion`;
   const metadata = document.asset.extras ??= {};
   const project = metadata.bistro_gltf ??= {};
   const build = project.build ??= {};
-  build.web = {
+  build[variant] = {
+    experimental: settings.experimental,
     geometry: {
       codec: 'KHR_draco_mesh_compression',
       compressor: 'gltfpack 1.2 / glTF Transform 4.4.1 / Draco 1.5.7',
-      simplificationRatio: 0.7,
-      simplificationError: 0.005,
-      permissiveSimplification: true,
-      lockedBorders: true,
+      ...geometry,
       meshMerging: true,
       gpuInstancing: true,
-      positionBits: 14,
-      texcoordBits: 14,
-      normalBits: 10,
     },
     animation: {
       resampling: false,
@@ -124,11 +132,9 @@ export function transformedDocument(
       codec: 'AVIF',
       encoder,
       speed,
-      profiles,
-      alphaQuality,
-      depth: 10,
-      chroma: '4:4:4',
-      resize: { normalMaxDimension: profiles.normal.maxDimension },
+      ...textures,
+      chroma: textures.chroma === '444' ? '4:4:4' : textures.chroma,
+      resize: { normalMaxDimension: textures.profiles.normal.maxDimension },
     },
   };
   return document;
@@ -139,6 +145,8 @@ export function transformedDocument(
 const execute = promisify(execFile);
 
 interface Options {
+  variant: string;
+  settings: VariantSettings;
   input: string;
   source: string;
   output: string;
@@ -162,10 +170,14 @@ function parseArguments(arguments_: string[]): Options {
   }
   const input = values.get('input');
   if (!input) throw new Error('usage: build-web.ts --input GEOMETRY.gltf [--output variants/web/Bistro.gltf]');
+  const variant = values.get('variant') ?? 'web';
+  const settings = variantSettings(variant);
   const options = {
+    variant,
+    settings,
     input,
     source: values.get('source') ?? 'variants/hq/Bistro.gltf',
-    output: values.get('output') ?? 'variants/web/Bistro.gltf',
+    output: values.get('output') ?? `variants/${variant}/Bistro.gltf`,
     ktx: values.get('ktx') ?? process.env.KTX ?? 'ktx',
     avifenc: values.get('avifenc') ?? process.env.AVIFENC ?? 'avifenc',
     magick: values.get('magick') ?? process.env.MAGICK ?? 'magick',
@@ -191,12 +203,14 @@ async function run(command: string, arguments_: string[]): Promise<string> {
 
 async function encodeTexture(
   uri: string,
-  role: Semantic,
+  plan: TexturePlan,
   sourceRoot: string,
   outputRoot: string,
   temporaryRoot: string,
   options: Options,
 ) {
+  const { role } = plan;
+  const textureSettings = options.settings.textures;
   const source = path.join(sourceRoot, uri);
   const png = path.join(temporaryRoot, avifUri(uri).replace(/\.avif$/, '.png'));
   const output = path.join(outputRoot, avifUri(uri));
@@ -212,10 +226,19 @@ async function encodeTexture(
     }
   }
   await run(options.ktx, ['extract', '--transcode', 'rgba8', '--level', '0', source, png]);
-  const opaque = (await run(options.magick, [png, '-format', '%[opaque]', 'info:'])) === 'True';
+  const sourceOpaque = (await run(options.magick, [png, '-format', '%[opaque]', 'info:'])) === 'True';
+  const opaque = sourceOpaque || (textureSettings.stripUnusedChannels && !plan.alphaRequired);
   if (opaque) await run(options.magick, [png, '-alpha', 'off', png]);
+  if (textureSettings.stripUnusedChannels && role === 'data') {
+    const unused = (['r', 'g', 'b'] as Channel[]).filter((channel) => !plan.channels.has(channel));
+    if (unused.length > 0) {
+      await run(options.magick, [
+        png, '-channel', unused.join('').toUpperCase(), '-evaluate', 'set', '0', '+channel', png,
+      ]);
+    }
+  }
 
-  const profile = profiles[role];
+  const profile = textureSettings.profiles[role];
   if (profile.maxDimension) {
     const bounds = `${profile.maxDimension}x${profile.maxDimension}>`;
     await run(options.magick, [png, '-resize', bounds, png]);
@@ -223,10 +246,11 @@ async function encodeTexture(
   const arguments_ = [
     '-q', String(profile.quality), '-s', String(options.speed),
     '-j', String(options.encoderJobs), '-c', 'aom',
-    '-a', `color:tune=${profile.tune}`, '-d', '10', '-y', '444',
+    '-a', `color:tune=${profile.tune}`, '-d', String(textureSettings.depth),
+    '-y', profile.chroma ?? textureSettings.chroma,
     '--cicp', profile.cicp, '-r', 'full', '--ignore-profile',
   ];
-  if (!opaque) arguments_.push('--qalpha', String(alphaQuality));
+  if (!opaque) arguments_.push('--qalpha', String(textureSettings.alphaQuality));
   arguments_.push(png, output);
   await run(options.avifenc, arguments_);
   const [before, after] = await Promise.all([stat(source), stat(output)]);
@@ -251,10 +275,12 @@ async function main() {
     readFile(options.source, 'utf8').then(JSON.parse),
     readFile(options.input, 'utf8').then(JSON.parse),
   ]);
-  const roles = textureRoles(source);
-  const geometryRoles = textureRoles(geometry);
-  const roleEntries = (value: Map<string, Semantic>) => [...value].sort(([left], [right]) => left.localeCompare(right));
-  if (JSON.stringify(roleEntries(roles)) !== JSON.stringify(roleEntries(geometryRoles))) {
+  const plans = texturePlans(source);
+  const geometryPlans = texturePlans(geometry);
+  const planEntries = (value: Map<string, TexturePlan>) => [...value]
+    .map(([uri, plan]) => [uri, plan.role, plan.alphaRequired, [...plan.channels].sort()])
+    .sort(([left], [right]) => String(left).localeCompare(String(right)));
+  if (JSON.stringify(planEntries(plans)) !== JSON.stringify(planEntries(geometryPlans))) {
     throw new Error('geometry pass changed texture semantics');
   }
 
@@ -267,12 +293,12 @@ async function main() {
   const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'bistro-avif-'));
   try {
     let completed = 0;
-    await concurrentMap([...roles], options.workers, async ([uri, role]) => {
-      const result = await encodeTexture(uri, role, sourceRoot, outputRoot, temporaryRoot, options);
+    await concurrentMap([...plans], options.workers, async ([uri, plan]) => {
+      const result = await encodeTexture(uri, plan, sourceRoot, outputRoot, temporaryRoot, options);
       completed++;
       const suffix = result.opaque ? '' : ' (alpha)';
       console.log(
-        `[${String(completed).padStart(3)}/${roles.size}] ${role.padEnd(6)} `
+        `[${String(completed).padStart(3)}/${plans.size}] ${plan.role.padEnd(6)} `
         + `${(result.before / 1024).toFixed(1).padStart(8)} -> `
         + `${(result.after / 1024).toFixed(1).padStart(8)} KiB ${uri}${suffix}`,
       );
@@ -283,7 +309,8 @@ async function main() {
   }
 
   const version = (await run(options.avifenc, ['--version'])).split('\n')[0];
-  const document = transformedDocument(geometry, roles, version, options.speed);
+  const roles = new Map([...plans].map(([uri, plan]) => [uri, plan.role]));
+  const document = transformedDocument(geometry, roles, version, options.speed, options.variant);
   const inputBinary = path.join(path.dirname(options.input), geometry.buffers[0].uri);
   const outputBinary = path.join(outputRoot, document.buffers[0].uri);
   await cp(inputBinary, outputBinary);

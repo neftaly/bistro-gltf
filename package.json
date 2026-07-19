@@ -12,7 +12,7 @@
     "build": "node scripts/viewer.mjs build",
     "build:viewer": "node scripts/viewer.mjs bundle",
     "build:web:geometry": "node scripts/build-web-geometry.mjs",
-    "build:web": "node scripts/build-web.ts",
+    "build:web": "node scripts/build-web.ts --input .build/web-geometry/Bistro.gltf",
     "typecheck": "tsc --noEmit",
     "test": "node --test",
     "validate": "node scripts/validate-assets.mjs"
