@@ -48,7 +48,8 @@ const controls = new OrbitControls(camera, renderer.domElement);
 
 const draco = new DRACOLoader();
 const loader = new GLTFLoader().setDRACOLoader(draco);
-const clock = new THREE.Clock();
+const timer = new THREE.Timer();
+timer.connect(document);
 
 function updateUrl(next: Selection) {
   history.replaceState(null, '', `${location.pathname}${selectionSearch(next)}`);
@@ -198,7 +199,8 @@ function resize() {
 
 new ResizeObserver(resize).observe(container);
 renderer.setAnimationLoop(() => {
-  mixer?.update(clock.getDelta());
+  timer.update();
+  mixer?.update(timer.getDelta());
   renderer.render(world, viewCamera());
 });
 void loadModel();
@@ -207,6 +209,7 @@ window.addEventListener('pagehide', () => {
   generation++;
   if (loaded) disposeGltf(loaded);
   renderer.setAnimationLoop(null);
+  timer.dispose();
   environment.dispose();
   draco.dispose();
   renderer.dispose();

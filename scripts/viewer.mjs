@@ -5,7 +5,7 @@ import { build, createServer, preview } from 'vite';
 const root = process.cwd();
 const command = process.argv[2];
 if (command === 'dev') {
-  const server = await createServer({ root, publicDir: false });
+  const server = await createServer({ root, publicDir: path.join(root, 'variants') });
   await server.listen();
   server.printUrls();
 } else if (command === 'preview') {

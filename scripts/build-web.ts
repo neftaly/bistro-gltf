@@ -73,6 +73,50 @@ export function avifUri(uri: string): string {
   return uri.replace(/\.[^.]+$/, '.avif');
 }
 
+function compactByKey<T>(values: T[], key: (value: T) => string): { values: T[]; indices: number[] } {
+  const compacted: T[] = [];
+  const byKey = new Map<string, number>();
+  const indices = values.map((value) => {
+    const identity = key(value);
+    const existing = byKey.get(identity);
+    if (existing !== undefined) return existing;
+    const index = compacted.length;
+    compacted.push(value);
+    byKey.set(identity, index);
+    return index;
+  });
+  return { values: compacted, indices };
+}
+
+function remapMaterialTextures(value: unknown, indices: number[], property = ''): void {
+  if (!value || typeof value !== 'object') return;
+  if (property.endsWith('Texture') && Number.isInteger((value as Json).index)) {
+    (value as Json).index = indices[(value as Json).index];
+  }
+  for (const [key, child] of Object.entries(value)) remapMaterialTextures(child, indices, key);
+}
+
+export function deduplicateTextureResources(source: Json): Json {
+  const document = structuredClone(source);
+  const images = compactByKey<Json>(document.images ?? [], (image) => image.uri ?? JSON.stringify(image));
+  document.images = images.values;
+
+  for (const texture of document.textures ?? []) {
+    if (Number.isInteger(texture.source)) texture.source = images.indices[texture.source];
+    for (const extension of Object.values(texture.extensions ?? {}) as Json[]) {
+      if (Number.isInteger(extension.source)) extension.source = images.indices[extension.source];
+    }
+  }
+
+  const textures = compactByKey<Json>(document.textures ?? [], (texture) => {
+    const { name: _name, ...identity } = texture;
+    return JSON.stringify(identity);
+  });
+  document.textures = textures.values;
+  for (const material of document.materials ?? []) remapMaterialTextures(material, textures.indices);
+  return document;
+}
+
 export function transformedDocument(
   source: Json,
   roles: Map<string, Semantic>,
@@ -137,7 +181,7 @@ export function transformedDocument(
       resize: { normalMaxDimension: textures.profiles.normal.maxDimension },
     },
   };
-  return document;
+  return deduplicateTextureResources(document);
 }
 
 // Imperative shell.

@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { texturePlans, textureRoles, transformedDocument } from '../scripts/build-web.ts';
+import {
+  deduplicateTextureResources,
+  texturePlans,
+  textureRoles,
+  transformedDocument,
+} from '../scripts/build-web.ts';
 
 const fixture = {
   asset: { version: '2.0' },
@@ -36,4 +41,18 @@ test('web transform replaces required BasisU textures with AVIF', () => {
   assert.equal(result.asset.extras.bistro_gltf.build.web.textures.chroma, '4:4:4');
   assert.equal(result.asset.extras.bistro_gltf.build.web.textures.stripUnusedChannels, true);
   assert.equal(fixture.images[0].uri, 'Textures/wall.ktx2');
+});
+
+test('duplicate image and texture resources are compacted with material indices remapped', () => {
+  const document = structuredClone(fixture);
+  document.images.push({ name: 'duplicate', uri: 'Textures/wall.ktx2' });
+  document.textures.push({ extensions: { KHR_texture_basisu: { source: 1 } } });
+  document.materials[0].emissiveTexture = { index: 1 };
+
+  const result = deduplicateTextureResources(document);
+  assert.equal(result.images.length, 1);
+  assert.equal(result.textures.length, 1);
+  assert.equal(result.materials[0].pbrMetallicRoughness.baseColorTexture.index, 0);
+  assert.equal(result.materials[0].emissiveTexture.index, 0);
+  assert.equal(document.images.length, 2);
 });
